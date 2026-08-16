@@ -1,0 +1,82 @@
+[package]
+name = "threadmill"
+version = "0.2.7"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# napi4 = ThreadsafeFunction + deferred, the highest Node-API level we need
+napi = { version = "3", default-features = false, features = ["napi4", "dyn-symbols"] }
+napi-derive = "3"
+rayon = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# zlib-rs backend: pure Rust like the default miniz_oxide but substantially
+# faster; flate2's gzip framing (MultiGzDecoder, BufRead consumption
+# accounting for trailing-garbage detection) is backend-independent.
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+gjson = "0.8"
+sha2 = "0.10"
+blake3 = "1"
+xxhash-rust = { version = "0.8", features = ["xxh3", "xxh64"] }
+zstd = "0.13"
+regex = "1"
+# NFC/NFD/NFKC/NFKD. icu4x's UTF-8 fast paths measured 3.5x (NFC/NFKC) to 5x
+# (NFD) faster than unicode-normalization on accented text, byte-identical
+# output; the compiled normalization data it embeds is a few hundred KB.
+icu_normalizer = "2"
+ammonia = "4"
+comrak = "0.54"
+scraper = "0.27"
+html2text = "0.17"
+csv = "1"
+aho-corasick = "1"
+similar = "3"
+strsim = "0.11"
+tiktoken-rs = "0.12"
+# still the decode fallback: on invalid input we re-decode with data-encoding
+# for its exact error messages (and its concatenated-padded-base64 acceptance);
+# hot-path encode/decode go through hex-simd / base64-simd below.
+data-encoding = "2"
+# PMULL/VPCLMULQDQ-folded CRC (runtime-detected): measured 41.9 GB/s vs
+# crc32fast's 8.4 GB/s single-chain __crc32d loop, and 43 GB/s vs the crc32c
+# crate's 17 GB/s, on M-series (identical checksums)
+crc-fast = "1"
+# NEON/AVX2 hex + base64 (identical bytes to data-encoding on every accepted
+# input): hex encode measured 19.8 GB/s vs 1.9, base64 encode 9.2 vs 2.6
+hex-simd = "0.8"
+base64-simd = "0.8"
+# LSD radix sort for f64 (same order as total_cmp, incl. ±NaN/±0):
+# 172ms vs 262ms pdqsort on 14M items — used only when the pool has 1 thread
+radsort = "0.1"
+# integer -> decimal digits without fmt machinery (multiFind match JSON)
+itoa = "1"
+brotli = "8"
+globset = "0.4"
+memchr = "2"
+# Myers/Hyyrö bit-parallel Levenshtein (pure Rust, MIT, zero deps)
+rapidfuzz = "0.5"
+
+# sha2's asm path (SHA-NI / ARMv8 crypto extensions) doesn't build on MSVC
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+sha2 = { version = "0.10", features = ["asm"] }
+
+# mimalloc's C build breaks under napi-rs's linux-gnu cross-toolchain (old GCC
+# without -Wdate-time); linux-gnu falls back to glibc malloc, which profiled
+# fine — the contention mimalloc fixes was macOS's zone-lock allocator.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+mimalloc = "0.1"
+
+# musl refuses initial-exec TLS in dlopen'd libraries, which .node addons are;
+# mimalloc's local_dynamic_tls feature exists for exactly that case
+[target.'cfg(all(target_os = "linux", target_env = "musl"))'.dependencies]
+mimalloc = { version = "0.1", features = ["local_dynamic_tls"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+strip = "symbols"

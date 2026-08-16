@@ -1,0 +1,17 @@
+target/
+node_modules/
+*.node
+npm-debug.log*
+.DS_Store
+
+# emitted by `tsc -p tsconfig.json` — sources of truth are the .ts files
+/index.js
+/index.d.ts
+/lib/*.js
+/lib/*.d.ts
+.idea/
+npm/
+artifacts/
+
+# self-install for tests/benchmarks (scripts/install-local.mjs)
+/offthread-threadmill-*.tgz

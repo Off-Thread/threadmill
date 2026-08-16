@@ -1,0 +1,22 @@
+{
+  // Type-checks the test suite only (never emits): the natively-executed .mts
+  // tests plus the compile-only fixture test/types.ts. Imports resolve to the
+  // INSTALLED package ('@offthread/threadmill' in the root node_modules,
+  // self-installed by scripts/install-local.mjs via npm test's pretest), so
+  // run `npm test` once before `npm run test:types`. The library build uses
+  // the root tsconfig.json; test/ stays excluded there.
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2022",
+    // ES2024 lib for String.prototype.isWellFormed (used by tokens.test.mts;
+    // available at runtime since Node 20).
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["test/**/*.mts", "test/types.ts"]
+}
