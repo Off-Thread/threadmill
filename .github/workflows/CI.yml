@@ -186,13 +186,47 @@ jobs:
         with:
           path: artifacts
       - run: npx napi artifacts
+      # Publishes are resumable: already-published packages are skipped and 409s
+      # (registry still processing a prior state) retry with backoff, so a rerun
+      # of this job picks up wherever the previous attempt stopped.
       - name: Publish
         run: |
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            npm publish --tag next --access public --provenance
-          else
-            npm publish --access public --provenance
-          fi
+          EXTRA=""
+          [[ "$GITHUB_REF_NAME" == *-* ]] && EXTRA="--tag next"
+          npx tsc -p tsconfig.json
+          publish_one() {
+            local dir="$1" name ver
+            name=$(node -p "require('$2/package.json').name")
+            ver=$(node -p "require('$2/package.json').version")
+            if npm view "$name@$ver" version > /dev/null 2>&1; then
+              echo "already published: $name@$ver"
+              return 0
+            fi
+            for i in 1 2 3 4 5 6; do
+              if npm publish $dir --access public --provenance $EXTRA; then
+                return 0
+              fi
+              echo "retrying $name in 30s (attempt $i)"
+              sleep 30
+            done
+            echo "giving up on $name"
+            return 1
+          }
+          for d in npm/*/; do
+            publish_one "./$d" "./$d"
+          done
+          node -e '
+            const fs = require("fs");
+            const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            const deps = {};
+            for (const d of fs.readdirSync("npm")) {
+              const pp = JSON.parse(fs.readFileSync(`npm/${d}/package.json`, "utf8"));
+              deps[pp.name] = pp.version;
+            }
+            p.optionalDependencies = deps;
+            fs.writeFileSync("package.json", JSON.stringify(p, null, 2));
+          '
+          publish_one "--ignore-scripts" "."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
